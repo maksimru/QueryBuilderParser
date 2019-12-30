@@ -196,12 +196,13 @@ class QueryBuilderParser
      * @param $value
      *
      * @throws QBParseException
+     * @throws QBRuleException
      *
      * @return string
      */
     protected function getCorrectValue($operator, stdClass $rule, $value)
     {
-        $field = $rule->getRuleLabel($rule);
+        $field = $this->getRuleLabel($rule);
         $sqlOperator = $this->operator_sql[$rule->operator];
         $requireArray = $this->operatorRequiresArray($operator);
 
