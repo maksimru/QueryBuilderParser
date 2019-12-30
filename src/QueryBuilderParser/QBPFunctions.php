@@ -12,6 +12,11 @@ trait QBPFunctions
      */
     abstract protected function checkRuleCorrect(stdClass $rule);
 
+    /**
+     * @param stdClass $rule
+     */
+    abstract protected function checkFieldCorrect(stdClass $rule);
+
     protected $operators = array (
         'equal'            => array ('accept_values' => true,  'apply_to' => ['string', 'number', 'datetime']),
         'not_equal'        => array ('accept_values' => true,  'apply_to' => ['string', 'number', 'datetime']),
@@ -224,6 +229,36 @@ trait QBPFunctions
     }
 
     /**
+     * get a field label of a given rule.
+     *
+     * throws an exception if the field is not correct.
+     *
+     * @param stdClass $rule
+     * @throws QBRuleException
+     */
+    private function getRuleLabel(stdClass $rule)
+    {
+        return $rule->label ?? $this->getRuleField($rule);
+    }
+
+    /**
+     * get a field name of a given rule.
+     *
+     * throws an exception if the field is not correct.
+     *
+     * @param stdClass $rule
+     * @throws QBRuleException
+     */
+    protected function getRuleField(stdClass $rule)
+    {
+        if (!$this->checkFieldCorrect($rule)) {
+            throw new QBRuleException();
+        }
+
+        return $rule->field;
+    }
+
+    /**
      * get a value for a given rule.
      *
      * throws an exception if the rule is not correct.
@@ -295,9 +330,9 @@ trait QBPFunctions
     protected function makeQueryWhenNull(Builder $query, stdClass $rule, array $sqlOperator, $condition)
     {
         if ($sqlOperator['operator'] == 'NULL') {
-            return $query->whereNull($rule->field, $condition);
+            return $query->whereNull($this->getRuleField($rule), $condition);
         } elseif ($sqlOperator['operator'] == 'NOT NULL') {
-            return $query->whereNotNull($rule->field, $condition);
+            return $query->whereNotNull($this->getRuleField($rule), $condition);
         }
 
         throw new QBParseException('makeQueryWhenNull was called on an SQL operator that is not null');
@@ -317,10 +352,10 @@ trait QBPFunctions
     private function makeArrayQueryIn(Builder $query, stdClass $rule, $operator, array $value, $condition)
     {
         if ($operator == 'NOT IN') {
-            return $query->whereNotIn($rule->field, $value, $condition);
+            return $query->whereNotIn($this->getRuleField($rule), $value, $condition);
         }
 
-        return $query->whereIn($rule->field, $value, $condition);
+        return $query->whereIn($this->getRuleField($rule), $value, $condition);
     }
 
 
@@ -339,13 +374,13 @@ trait QBPFunctions
     private function makeArrayQueryBetween(Builder $query, stdClass $rule, $operator, array $value, $condition)
     {
         if (count($value) !== 2) {
-            throw new QBParseException("{$rule->field} should be an array with only two items.");
+            throw new QBParseException("{$this->getRuleLabel($rule)} should be an array with only two items.");
         }
 
         if ( $operator == 'NOT BETWEEN' ) {
             return $query->whereNotBetween( $rule->field, $value, $condition );
         }
 
-        return $query->whereBetween($rule->field, $value, $condition);
+        return $query->whereBetween($this->getRuleField($rule), $value, $condition);
     }
 }

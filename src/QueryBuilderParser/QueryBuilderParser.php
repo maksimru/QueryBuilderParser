@@ -5,20 +5,24 @@ namespace timgws;
 use \Carbon\Carbon;
 use \stdClass;
 use \Illuminate\Database\Query\Builder;
+use \Illuminate\Database\Query\Expression;
 use \timgws\QBParseException;
 
 class QueryBuilderParser
 {
     use QBPFunctions;
 
-    protected $fields;
+    protected $allowedFields;
+
+    protected $customFields;
 
     /**
-     * @param array $fields a list of all the fields that are allowed to be filtered by the QueryBuilder
+     * @param array $fields a list of all the fields (id) that are allowed to be filtered by the QueryBuilder
      */
-    public function __construct(array $fields = null)
+    public function __construct(array $allowedFields = null, array $customFields = [])
     {
-        $this->fields = $fields;
+        $this->allowedFields = $allowedFields;
+        $this->customFields = $customFields;
     }
 
     /**
@@ -135,6 +139,24 @@ class QueryBuilderParser
      *
      * @return bool true if values are correct.
      */
+    protected function checkFieldCorrect(stdClass $rule)
+    {
+        if (!isset($rule->field) && (is_string($rule->field) || $rule->field instanceof Expression)) {
+            return false;
+        }
+
+        return true;
+    }
+
+    /**
+     * Check if a given rule is correct.
+     *
+     * Just before making a query for a rule, we want to make sure that the field, operator and value are set
+     *
+     * @param stdClass $rule
+     *
+     * @return bool true if values are correct.
+     */
     protected function checkRuleCorrect(stdClass $rule)
     {
         if (!isset($rule->operator, $rule->id, $rule->field, $rule->type)) {
@@ -179,7 +201,7 @@ class QueryBuilderParser
      */
     protected function getCorrectValue($operator, stdClass $rule, $value)
     {
-        $field = $rule->field;
+        $field = $rule->getRuleLabel($rule);
         $sqlOperator = $this->operator_sql[$rule->operator];
         $requireArray = $this->operatorRequiresArray($operator);
 
@@ -253,7 +275,7 @@ class QueryBuilderParser
             return $this->makeQueryWhenNull($query, $rule, $sqlOperator, $condition);
         }
 
-        return $query->where($rule->field, $sqlOperator['operator'], $value, $condition);
+        return $query->where($this->getRuleField($rule), $sqlOperator['operator'], $value, $condition);
     }
 
     /**
@@ -276,7 +298,7 @@ class QueryBuilderParser
         /*
          * The field must exist in our list.
          */
-        $this->ensureFieldIsAllowed($this->fields, $rule->field);
+        $this->ensureFieldIsAllowed($this->allowedFields, $rule->id ?? $this->getRuleField($rule));
 
         /*
          * If the SQL Operator is set not to have a value, make sure that we set the value to null.
@@ -298,5 +320,13 @@ class QueryBuilderParser
         $value = $this->getCorrectValue($operator, $rule, $value);
 
         return $value;
+    }
+
+    protected function getRuleField(stdClass $rule)
+    {
+        if(isset($this->customFields[$rule->field]))
+            return \DB::raw($this->customFields[$rule->field]);
+
+        return $rule->field;
     }
 }
